@@ -146,13 +146,4 @@ Then open:
 - The app uses FAISS local deserialization for indexes it created itself.
 - Uvicorn `--reload` may fail on some Windows setups; run without `--reload` if needed.
 
-## GitHub
 
-Before pushing to GitHub, make sure these are not committed:
-
-- `.env`
-- `.venv/`
-- `data/documents/*`
-- `data/vectorstore/*`
-
-This repo already includes a `.gitignore` for those paths.
