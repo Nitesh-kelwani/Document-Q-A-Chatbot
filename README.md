@@ -1,3 +1,33 @@
+## Public portfolio demo
+
+Python 3.12; Streamlit Community Cloud entrypoint: **`demo_app.py`**. This entrypoint calls the service layer directly;
+no separately hosted FastAPI process is needed. The original local API/UI entrypoints below remain available.
+
+Configure root hosting secrets:
+
+```toml
+AI_PROVIDER = "groq"
+GROQ_API_KEY = "YOUR_PERSONAL_GROQ_KEY"
+GROQ_MODEL = "openai/gpt-oss-20b"
+EMBEDDING_PROVIDER = "fastembed"
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
+```
+
+Use personal GitHub/Groq accounts. Keep credentials in the dashboard, never Git. Free hosting can sleep and AI quotas
+are shared. The first startup downloads the CPU embedding model. Samples are synthetic and included in `samples/`.
+
+Visitors can upload up to three text-based PDFs (5 MB and 30 pages each). Parsed pages and vector indexes remain in
+isolated memory, never the shared `data/documents` folder. Sessions expire after 30 minutes idle; cleanup runs every
+30 seconds. Reset removes uploads, indexes, source snippets and chat. Relevant excerpts and questions are sent to the
+AI provider, so visitors should avoid sensitive files. Scanned and encrypted PDFs are unsupported.
+
+Five questions per session per minute; six history messages; 700-token completions; four agent iterations/tool searches.
+The service bounds concurrent work and active sessions. The public hosted demo exposes no FastAPI upload endpoints.
+
+Run `streamlit run demo_app.py` locally or `python -m pytest -q` after installing `pytest==8.4.1`.
+To use Azure locally, set `AI_PROVIDER=azure`, `EMBEDDING_PROVIDER=azure` and the Azure variables below. Reindex when
+switching embedding providers. Sample PDFs can be rebuilt with `reportlab` and `python scripts/create_samples.py`.
+Verify real answers, citations, session isolation and signed-out public access before adding the deployment URL to the portfolio.
 # Document Q&A Chatbot
 
 A multi-document PDF question-answering app built with FastAPI, Streamlit, LangChain, FAISS, and Azure OpenAI.
@@ -145,5 +175,3 @@ Then open:
 - Uploaded PDFs are stored in `data/documents`.
 - The app uses FAISS local deserialization for indexes it created itself.
 - Uvicorn `--reload` may fail on some Windows setups; run without `--reload` if needed.
-
-

@@ -1,0 +1,12 @@
+[theme]
+base = "dark"
+primaryColor = "#93d9b4"
+
+[server]
+maxUploadSize = 5
+
+[client]
+showErrorDetails = false
+
+[browser]
+gatherUsageStats = false
