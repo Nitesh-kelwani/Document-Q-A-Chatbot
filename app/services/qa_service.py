@@ -2,6 +2,7 @@
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+import json
 from threading import Lock
 from typing import Any
 
@@ -14,6 +15,7 @@ from langchain_core.tools.retriever import create_retriever_tool
 from langchain_openai import AzureChatOpenAI, AzureOpenAIEmbeddings
 
 from app.core.config import Settings, get_settings
+from app.core.providers import make_llm, make_embeddings
 from app.schemas import ChatTurn, SourceDocument
 from app.services.document_service import DocumentService
 
@@ -36,25 +38,8 @@ class QAService:
         self.settings = settings
         self.document_service = DocumentService(settings)
         self._lock = Lock()
-        self._embeddings = AzureOpenAIEmbeddings(
-            model=(
-                settings.azure_openai_embedding_model
-                or settings.azure_openai_embedding_deployment
-            ),
-            azure_deployment=settings.azure_openai_embedding_deployment,
-            api_version=settings.azure_openai_api_version,
-            azure_endpoint=settings.azure_openai_endpoint,
-            api_key=settings.azure_openai_api_key,
-        )
-        self._llm = AzureChatOpenAI(
-            azure_deployment=settings.azure_openai_chat_deployment,
-            model=settings.azure_openai_chat_model,
-            api_version=settings.azure_openai_api_version,
-            azure_endpoint=settings.azure_openai_endpoint,
-            api_key=settings.azure_openai_api_key,
-            temperature=settings.temperature,
-            max_tokens=settings.max_response_tokens,
-        )
+        self._llm = make_llm(settings)
+        self._embeddings = make_embeddings(settings)
 
     @property
     def documents_dir(self) -> Path:
@@ -74,6 +59,8 @@ class QAService:
             chunks = self.document_service.split_documents(documents)
             vector_store = FAISS.from_documents(chunks, self._embeddings)
             vector_store.save_local(str(self.settings.vectorstore_dir))
+            self.settings.vectorstore_dir.joinpath('embedding-config.json').write_text(
+                json.dumps(self._embedding_identity()), encoding='utf-8')
 
             return IngestionResult(
                 files_indexed=len(self.document_service.discover_files()),
@@ -125,6 +112,10 @@ class QAService:
             raise FileNotFoundError(
                 'No vector index found. Upload a PDF or call /api/documents/reindex first.'
             )
+
+        identity = self.settings.vectorstore_dir / 'embedding-config.json'
+        if not identity.exists() or json.loads(identity.read_text(encoding='utf-8')) != self._embedding_identity():
+            raise ValueError('The embedding configuration changed. Reindex the documents before asking questions.')
 
         vector_store = FAISS.load_local(
             str(self.settings.vectorstore_dir),
@@ -183,6 +174,8 @@ class QAService:
             tools=tools,
             verbose=False,
             handle_parsing_errors=True,
+            max_iterations=4,
+            max_execution_time=120,
         )
 
     @staticmethod
@@ -209,6 +202,11 @@ class QAService:
             self.settings.vectorstore_dir.joinpath('index.faiss').exists()
             and self.settings.vectorstore_dir.joinpath('index.pkl').exists()
         )
+
+    def _embedding_identity(self):
+        return {'provider': self.settings.embedding_provider,
+                'model': self.settings.embedding_model if self.settings.embedding_provider == 'fastembed'
+                else self.settings.azure_openai_embedding_deployment}
 
     @staticmethod
     def _to_source_document(doc: Document) -> SourceDocument:
